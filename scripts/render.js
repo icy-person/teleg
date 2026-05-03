@@ -2,25 +2,51 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 
 (async () => {
-  const url = process.argv[2];
 
-  const browser = await chromium.launch({
-    headless: true
-  });
+const url = process.argv[2];
 
-  const page = await browser.newPage();
+const browser = await chromium.launch();
 
-  await page.goto(url, {
-    waitUntil: "networkidle",
-    timeout: 60000
-  });
+const page = await browser.newPage();
 
-  // کمی صبر برای لود JS
-  await page.waitForTimeout(4000);
+await page.goto(url,{waitUntil:"networkidle"});
 
-  const html = await page.content();
+await page.waitForTimeout(4000);
 
-  fs.writeFileSync("page.html", html);
+const posts = await page.evaluate(()=>{
 
-  await browser.close();
+const articles = Array.from(document.querySelectorAll("article"));
+
+if(articles.length===0){
+
+return [{
+text:document.body.innerText,
+images:Array.from(document.images).map(i=>i.src),
+videos:Array.from(document.querySelectorAll("video,source")).map(v=>v.src)
+}];
+
+}
+
+return articles.map(a=>{
+
+return{
+
+text:a.innerText,
+
+images:Array.from(a.querySelectorAll("img")).map(i=>i.src),
+
+videos:Array.from(a.querySelectorAll("video,source"))
+.map(v=>v.src)
+.filter(Boolean)
+
+}
+
+})
+
+});
+
+fs.writeFileSync("posts.json",JSON.stringify(posts,null,2));
+
+await browser.close();
+
 })();
