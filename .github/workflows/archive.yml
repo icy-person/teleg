@@ -1,0 +1,54 @@
+name: Archive Page
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL صفحه"
+        required: true
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: install playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium
+
+      - name: render page
+        run: node scripts/render.js "${{ github.event.inputs.url }}"
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: convert html → markdown
+        run: cargo run --release
+
+      - name: build index
+        run: |
+          mkdir -p pages
+          echo "# Archived Pages" > index.md
+          echo "" >> index.md
+          for f in pages/*.md
+          do
+            name=$(basename "$f")
+            echo "- [$name]($f)" >> index.md
+          done
+
+      - name: commit
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add .
+          git commit -m "archive page"
+          git push
