@@ -1,0 +1,16 @@
+body{
+font-family:sans-serif;
+max-width:800px;
+margin:auto;
+padding:20px;
+}
+
+.item{
+padding:10px;
+border-bottom:1px solid #ddd;
+}
+
+a{
+text-decoration:none;
+color:#0366d6;
+}
