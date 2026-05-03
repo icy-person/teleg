@@ -1,179 +1,119 @@
 use std::fs;
-use std::path::Path;
-
-use serde::{Deserialize, Serialize};
-use chrono::{Utc, DateTime};
+use serde::{Deserialize,Serialize};
+use chrono::Utc;
+use uuid::Uuid;
 
 #[derive(Deserialize)]
-struct Post {
-    text: String,
-    images: Vec<String>,
-    videos: Vec<String>,
+struct Post{
+text:String,
+images:Vec<String>,
+videos:Vec<String>
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-struct Stats {
-    posts: usize,
-    images: usize,
-    videos: usize,
+#[derive(Serialize,Deserialize,Clone)]
+struct Entry{
+id:String,
+title:String,
+url:String,
+date:String,
+file:String,
+images:usize,
+videos:usize
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-struct Entry {
-    id: String,
-    title: String,
-    r#type: String,
-    url: String,
-    date: DateTime<Utc>,
-    file: String,
-    stats: Stats,
-}
+fn download(url:&str,path:&str){
 
-fn download(url: &str, path: &str) {
+if let Ok(resp)=reqwest::blocking::get(url){
 
-    if let Ok(resp) = reqwest::blocking::get(url) {
+if let Ok(bytes)=resp.bytes(){
 
-        if let Ok(bytes) = resp.bytes() {
-
-            let _ = fs::write(path, bytes);
-
-        }
-
-    }
+let _=fs::write(path,bytes);
 
 }
 
-fn load_meta(path: &str) -> Vec<Entry> {
-
-    if Path::new(path).exists() {
-
-        let s = fs::read_to_string(path).unwrap_or_default();
-
-        serde_json::from_str(&s).unwrap_or_default()
-
-    } else {
-
-        Vec::new()
-
-    }
+}
 
 }
 
-fn save_meta(path: &str, entries: &Vec<Entry>) {
+fn main(){
 
-    let s = serde_json::to_string_pretty(entries).unwrap();
+fs::create_dir_all("archive/posts").unwrap();
+fs::create_dir_all("archive/assets/images").unwrap();
+fs::create_dir_all("archive/assets/videos").unwrap();
 
-    fs::write(path, s).unwrap();
+let data=fs::read_to_string("posts.json").unwrap();
 
-}
+let posts:Vec<Post>=serde_json::from_str(&data).unwrap();
 
-fn build_index(entries: &Vec<Entry>) {
+let mut md=String::new();
 
-    let mut md = String::new();
+let mut img_total=0;
+let mut vid_total=0;
 
-    md.push_str("# 🗂 Archive\n\n");
-    md.push_str("List of archived pages.\n\n---\n\n");
+for (i,p) in posts.iter().enumerate(){
 
-    let mut list = entries.clone();
+md.push_str(&p.text);
+md.push_str("\n\n");
 
-    list.sort_by(|a,b| b.date.cmp(&a.date));
+for (j,img) in p.images.iter().enumerate(){
 
-    for e in list {
+let path=format!("archive/assets/images/{}_{}.jpg",i,j);
 
-        md.push_str(&format!(
-            "- **{}** – [{}]({})  \nType: {} – {} posts – {} images – {} videos\n\n",
-            e.date.format("%Y-%m-%d %H:%M"),
-            e.title,
-            e.file,
-            e.r#type,
-            e.stats.posts,
-            e.stats.images,
-            e.stats.videos
-        ));
+download(img,&path);
 
-    }
+md.push_str(&format!("![](/{} )\n\n",path));
 
-    fs::write("archive/index.md", md).unwrap();
+img_total+=1;
 
 }
 
-fn main() {
+for (j,vid) in p.videos.iter().enumerate(){
 
-    fs::create_dir_all("archive/posts").unwrap();
-    fs::create_dir_all("archive/assets/images").unwrap();
-    fs::create_dir_all("archive/assets/videos").unwrap();
+let path=format!("archive/assets/videos/{}_{}.mp4",i,j);
 
-    let json = fs::read_to_string("posts.json").unwrap();
+download(vid,&path);
 
-    let posts: Vec<Post> = serde_json::from_str(&json).unwrap();
-
-    let mut images_total = 0;
-    let mut videos_total = 0;
-
-    let mut md = String::new();
-
-    md.push_str("# Archived Page\n\n");
-
-    for (i,p) in posts.iter().enumerate() {
-
-        md.push_str(&p.text);
-        md.push_str("\n\n");
-
-        for (j,img) in p.images.iter().enumerate() {
-
-            let path = format!("archive/assets/images/p{}_{}.jpg",i,j);
-
-            download(img,&path);
-
-            md.push_str(&format!("![](/{} )\n\n",path));
-
-            images_total += 1;
-
-        }
-
-        for (j,vid) in p.videos.iter().enumerate() {
-
-            let path = format!("archive/assets/videos/p{}_{}.mp4",i,j);
-
-            download(vid,&path);
-
-            md.push_str(&format!(
+md.push_str(&format!(
 "<video controls src=\"/{}\" width=\"600\"></video>\n\n",
 path
 ));
 
-            videos_total += 1;
+vid_total+=1;
 
-        }
+}
 
-    }
+}
 
-    let id = Utc::now().timestamp().to_string();
+let id=Uuid::new_v4().to_string();
 
-    let file = format!("archive/posts/{}.md",id);
+let file=format!("archive/posts/{}.md",&id);
 
-    fs::write(&file,md).unwrap();
+fs::write(&file,md).unwrap();
 
-    let meta_path = "archive/meta.json";
+let meta_path="archive/meta.json";
 
-    let mut meta = load_meta(meta_path);
+let mut meta:Vec<Entry>=if let Ok(s)=fs::read_to_string(meta_path){
 
-    meta.push(Entry{
-        id: id.clone(),
-        title: format!("Archive {}",id),
-        r#type: "web".into(),
-        url: "".into(),
-        date: Utc::now(),
-        file: file.clone(),
-        stats: Stats{
-            posts: posts.len(),
-            images: images_total,
-            videos: videos_total,
-        }
-    });
+serde_json::from_str(&s).unwrap_or_default()
 
-    save_meta(meta_path,&meta);
+}else{
 
-    build_index(&meta);
+Vec::new()
+
+};
+
+meta.push(Entry{
+
+id:id.clone(),
+title:format!("Archive {}",id),
+url:"".into(),
+date:Utc::now().to_rfc3339(),
+file:file.clone(),
+images:img_total,
+videos:vid_total
+
+});
+
+fs::write(meta_path,serde_json::to_string_pretty(&meta).unwrap()).unwrap();
 
 }
