@@ -1,43 +1,39 @@
-const { chromium } = require("playwright");
-const fs = require("fs");
+const {chromium}=require("playwright");
+const fs=require("fs");
 
-(async () => {
+(async()=>{
 
-const url = process.argv[2];
+const url=process.argv[2];
 
-const browser = await chromium.launch();
+const browser=await chromium.launch();
 
-const page = await browser.newPage();
+const page=await browser.newPage();
 
 await page.goto(url,{waitUntil:"networkidle"});
 
-await page.waitForTimeout(4000);
+await page.waitForTimeout(5000);
 
-const posts = await page.evaluate(()=>{
+const posts=await page.evaluate(()=>{
 
-const articles = Array.from(document.querySelectorAll("article"));
+const arts=[...document.querySelectorAll("article")];
 
-if(articles.length===0){
+if(arts.length===0){
 
 return [{
 text:document.body.innerText,
-images:Array.from(document.images).map(i=>i.src),
-videos:Array.from(document.querySelectorAll("video,source")).map(v=>v.src)
+images:[...document.images].map(i=>i.src),
+videos:[...document.querySelectorAll("video source")].map(v=>v.src)
 }];
 
 }
 
-return articles.map(a=>{
+return arts.map(a=>{
 
 return{
 
 text:a.innerText,
-
-images:Array.from(a.querySelectorAll("img")).map(i=>i.src),
-
-videos:Array.from(a.querySelectorAll("video,source"))
-.map(v=>v.src)
-.filter(Boolean)
+images:[...a.querySelectorAll("img")].map(i=>i.src),
+videos:[...a.querySelectorAll("video source")].map(v=>v.src)
 
 }
 
