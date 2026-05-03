@@ -24,6 +24,34 @@ jobs:
           npm init -y
           npm install playwright
           npx playwright install chromium
+      - name: Install Cloudflare WARP
+        run: |
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-warp.gpg
+
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+
+          sudo apt-get update
+          sudo apt-get install -y cloudflare-warp
+
+      # ======================================================
+      # CONNECT WARP
+      # ======================================================
+      - name: Connect WARP
+        continue-on-error: true
+        run: |
+          sudo warp-cli --accept-tos registration new || true
+          sudo warp-cli --accept-tos connect || true
+
+          sleep 6
+
+          echo "WARP STATUS:"
+          sudo warp-cli status || true
+
+          echo "IP INFO:"
+          curl -s https://ipinfo.io
+
 
       - name: render page
         run: node scripts/render.js "${{ github.event.inputs.url }}"
