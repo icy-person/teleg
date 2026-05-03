@@ -1,82 +1,47 @@
-name: Archive Page
+name: archive
 
 on:
-  workflow_dispatch:
-    inputs:
-      url:
-        description: "URL صفحه"
-        required: true
+ workflow_dispatch:
+   inputs:
+     url:
+       description: page url
+       required: true
 
 jobs:
-  archive:
-    runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+ run:
 
-      - name: install node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+   runs-on: ubuntu-latest
 
-      - name: install playwright
-        run: |
-          npm init -y
-          npm install playwright
-          npx playwright install chromium
-      - name: Install Cloudflare WARP
-        run: |
-          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
-            | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-warp.gpg
+   steps:
 
-          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" \
-            | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+   - uses: actions/checkout@v4
 
-          sudo apt-get update
-          sudo apt-get install -y cloudflare-warp
+   - uses: actions/setup-node@v4
+     with:
+       node-version: 20
+  
+   - run: npm init -y
+   - run: npm install playwright
 
-      # ======================================================
-      # CONNECT WARP
-      # ======================================================
-      - name: Connect WARP
-        continue-on-error: true
-        run: |
-          sudo warp-cli --accept-tos registration new || true
-          sudo warp-cli --accept-tos connect || true
+   - run: npx playwright install chromium
+   
+   - name: render
+     run: node scripts/render.js "${{ github.event.inputs.url }}"
 
-          sleep 6
+   - uses: actions-rs/toolchain@v1
+     with:
+       toolchain: stable
 
-          echo "WARP STATUS:"
-          sudo warp-cli status || true
+   - run: cargo build --release
 
-          echo "IP INFO:"
-          curl -s https://ipinfo.io
+   - name: generate
+     run: ./target/release/archiver
 
-
-      - name: render page
-        run: node scripts/render.js "${{ github.event.inputs.url }}"
-
-      - name: setup rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: convert html → markdown
-        run: cargo run --release
-
-      - name: build index
-        run: |
-          mkdir -p pages
-          echo "# Archived Pages" > index.md
-          echo "" >> index.md
-          for f in pages/*.md
-          do
-            name=$(basename "$f")
-            echo "- [$name]($f)" >> index.md
-          done
-
-      - name: commit
-        run: |
-          git config user.name github-actions
-          git config user.email actions@github.com
-          git add .
-          git commit -m "archive page"
-          git push
+   - name: commit
+     run: |
+       git config user.name github-actions
+       git config user.email actions@github.com
+       git add archive
+       git commit -m "archive ${{ github.event.inputs.url }}" || echo "no changes"
+       git push
